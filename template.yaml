@@ -1,0 +1,198 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  sam-datalake
+
+  Sample SAM Template for sam-datalake
+
+Globals:
+  Function:
+    Timeout: 300
+    Runtime: python3.7
+
+Resources:
+  ProcessDataFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: process_data/
+      Handler: process_data.lambda_handler
+
+  DeliveryStream:
+    DependsOn:
+      - DeliveryPolicy
+    Type: AWS::KinesisFirehose::DeliveryStream
+    Properties:
+      DeliveryStreamType: DirectPut
+      ExtendedS3DestinationConfiguration:
+        BucketARN: !GetAtt S3Bucket.Arn
+        CloudWatchLoggingOptions:
+          Enabled: true
+          LogGroupName: !Ref DeliveryLogGroup
+          LogStreamName: !Ref DeliveryLogStream
+        BufferingHints:
+          IntervalInSeconds: 60
+          SizeInMBs: 1
+        CompressionFormat: UNCOMPRESSED
+        # CompressionFormat: GZIP
+        ErrorOutputPrefix:
+          !Join [
+            "/",
+            [
+              !Ref AWS::StackName,
+              "Error",
+              "!{firehose:error-output-type}",
+              "year=!{timestamp:YYYY}",
+              "month=!{timestamp:MM}",
+              "day=!{timestamp:dd}",
+              "hour=!{timestamp:HH}",
+              "",
+            ],
+          ]
+        Prefix:
+          !Join [
+            "/",
+            [
+              !Ref AWS::StackName,
+              "RawData",
+              "year=!{timestamp:YYYY}",
+              "month=!{timestamp:MM}",
+              "day=!{timestamp:dd}",
+              "hour=!{timestamp:HH}",
+              "",
+            ],
+          ]
+        RoleARN: !GetAtt DeliveryRole.Arn
+        ProcessingConfiguration:
+          Enabled: true
+          Processors:
+            - Type: Lambda
+              Parameters:
+                - ParameterName: LambdaArn
+                  ParameterValue: !GetAtt ProcessDataFunction.Arn
+  S3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      VersioningConfiguration:
+        Status: Enabled
+
+  DeliveryRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Sid: ""
+            Effect: Allow
+            Principal:
+              Service: firehose.amazonaws.com
+            Action: "sts:AssumeRole"
+            Condition:
+              StringEquals:
+                "sts:ExternalId": !Ref "AWS::AccountId"
+
+  DeliveryPolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: !Join ["-", [!Ref AWS::StackName, "Delivery"]]
+      Roles:
+        - !Ref DeliveryRole
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Sid: ""
+            Effect: Allow
+            Action:
+              - "glue:GetTable"
+              - "glue:GetTableVersion"
+              - "glue:GetTableVersions"
+            Resource: "*"
+          - Sid: ""
+            Effect: Allow
+            Action:
+              - "s3:AbortMultipartUpload"
+              - "s3:GetBucketLocation"
+              - "s3:GetObject"
+              - "s3:ListBucket"
+              - "s3:ListBucketMultipartUploads"
+              - "s3:PutObject"
+            Resource:
+              - !GetAtt S3Bucket.Arn
+              - !Join ["/", [!GetAtt S3Bucket.Arn, "*"]]
+              - "arn:aws:s3:::%FIREHOSE_BUCKET_NAME%"
+              - "arn:aws:s3:::%FIREHOSE_BUCKET_NAME%/*"
+          - Sid: ""
+            Effect: Allow
+            Action:
+              - "lambda:InvokeFunction"
+              - "lambda:GetFunctionConfiguration"
+            Resource:
+              - !Join
+                - ":"
+                - - !GetAtt ProcessDataFunction.Arn
+                  # - "$LATEST"
+          - Sid: ""
+            Effect: Allow
+            Action: "logs:PutLogEvents"
+            Resource:
+              - !Join
+                - ":"
+                - - "arn:aws:logs"
+                  - !Ref "AWS::Region"
+                  - !Ref "AWS::AccountId"
+                  - "log-group"
+                  - !Ref DeliveryLogGroup
+                  - !Ref DeliveryLogStream
+                  - "*"
+          - Sid: ""
+            Effect: Allow
+            Action:
+              - "kinesis:DescribeStream"
+              - "kinesis:GetShardIterator"
+              - "kinesis:GetRecords"
+              - "kinesis:ListShards"
+            Resource:
+              - !Join
+                - ":"
+                - - "arn:aws:kinesis"
+                  - !Ref AWS::Region
+                  - !Ref AWS::AccountId
+                  - "stream/%FIREHOSE_STREAM_NAME%"
+          - Sid: ""
+            Effect: Allow
+            Action:
+              - "kms:Decrypt"
+            Resource:
+              - !Join
+                - ":"
+                - - "arn:aws:kms"
+                  - !Ref AWS::Region
+                  - !Ref AWS::AccountId
+                  - "key/%SSE_KEY_ID%"
+            Condition:
+              StringEquals:
+                "kms:ViaService": "kinesis.%REGION_NAME%.amazonaws.com"
+              StringLike:
+                "kms:EncryptionContext:aws:kinesis:arn": !Join
+                  - ":"
+                  - - "arn:aws:kinesis"
+                    - "%REGION_NAME%"
+                    - !Ref AWS::AccountId
+                    - "stream/%FIREHOSE_STREAM_NAME%"
+
+  DeliveryLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      RetentionInDays: 7
+
+  DeliveryLogStream:
+    Type: AWS::Logs::LogStream
+    Properties:
+      LogGroupName: !Ref DeliveryLogGroup
+
+Outputs:
+  ProcessDataFunctionArn:
+    Description: "Process Data Lambda Function ARN"
+    Value: !GetAtt ProcessDataFunction.Arn
+  ProcessDataFunctionName:
+    Description: "Process Data Lambda Function Name"
+    Value: !Ref ProcessDataFunction

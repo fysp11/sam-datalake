@@ -15,7 +15,7 @@ def process_record(record):
     more_data = {**parsed_data, 'testing': True}
 
     bytes_data = json.dumps(more_data).encode('utf-8')
-    done_data = b64encode(decoded_data).decode('utf-8')
+    done_data = b64encode(bytes_data).decode('utf-8')
 
     return {
         'recordId': record['recordId'],

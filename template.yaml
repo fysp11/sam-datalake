@@ -9,6 +9,12 @@ Parameters:
   S3BucketName:
     Type: String
     Description: S3 Bucket Name for storing the pipeline data.
+  GlueTableName:
+    Type: String
+    Description: S3 Bucket Name for storing the pipeline data.
+  GlueDatabaseName:
+    Type: String
+    Description: S3 Bucket Name for storing the pipeline data.
 
 Globals:
   Function:
@@ -21,6 +27,51 @@ Resources:
     Properties:
       CodeUri: process_data/
       Handler: process_data.lambda_handler
+
+  GlueTable:
+    Type: AWS::Glue::Table
+    Properties:
+      CatalogId: !Ref AWS::AccountId
+      DatabaseName: !Ref GlueDatabaseName
+      TableInput:
+        Name: !Ref GlueTableName
+        Retention: 0
+        StorageDescriptor:
+          Location: !Sub "s3://${S3BucketName}/${AWS::StackName}/RawData/"
+          Columns:
+            - Name: ticker_symbol
+              Type: string
+            - Name: sector
+              Type: string
+            - Name: change
+              Type: double
+            - Name: price
+              Type: double
+          InputFormat: org.apache.hadoop.hive.ql.io.parquet.MapredParquetInputFormat
+          OutputFormat: org.apache.hadoop.hive.ql.io.parquet.MapredParquetOutputFormat
+          Compressed: true
+          NumberOfBuckets: -1
+          SerdeInfo:
+            SerializationLibrary: org.apache.hadoop.hive.ql.io.parquet.serde.ParquetHiveSerDe
+            Parameters:
+              serialization.format: "1"
+          BucketColumns: []
+          SortColumns: []
+          StoredAsSubDirectories: false
+        PartitionKeys:
+          - Name: year
+            Type: string
+          - Name: month
+            Type: string
+          - Name: day
+            Type: string
+          - Name: hour
+            Type: string
+        TableType: EXTERNAL_TABLE
+        Parameters:
+          classification: parquet
+          typeOfData: file
+          compressionType: none
 
   DeliveryStream:
     DependsOn:
@@ -36,9 +87,8 @@ Resources:
           LogStreamName: !Ref DeliveryLogStream
         BufferingHints:
           IntervalInSeconds: 60
-          SizeInMBs: 1
+          SizeInMBs: 64
         CompressionFormat: UNCOMPRESSED
-        # CompressionFormat: GZIP
         ErrorOutputPrefix:
           !Join [
             "/",
@@ -67,6 +117,21 @@ Resources:
             ],
           ]
         RoleARN: !GetAtt DeliveryRole.Arn
+        DataFormatConversionConfiguration:
+          SchemaConfiguration:
+            CatalogId: !Ref AWS::AccountId
+            RoleARN: !GetAtt DeliveryRole.Arn
+            DatabaseName: !Ref GlueDatabaseName
+            TableName: !Ref GlueTable
+            Region: !Ref AWS::Region
+            VersionId: LATEST
+          InputFormatConfiguration:
+            Deserializer:
+              OpenXJsonSerDe: {}
+          OutputFormatConfiguration:
+            Serializer:
+              ParquetSerDe: {}
+          Enabled: True
         ProcessingConfiguration:
           Enabled: true
           Processors:

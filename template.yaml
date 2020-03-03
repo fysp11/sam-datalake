@@ -29,7 +29,7 @@ Resources:
     Properties:
       DeliveryStreamType: DirectPut
       ExtendedS3DestinationConfiguration:
-        BucketARN: !Join ['', ['arn:aws:s3:::', !Ref S3BucketName]
+        BucketARN: !Join ["", ["arn:aws:s3:::", !Ref S3BucketName]]
         CloudWatchLoggingOptions:
           Enabled: true
           LogGroupName: !Ref DeliveryLogGroup
@@ -116,8 +116,8 @@ Resources:
               - "s3:ListBucketMultipartUploads"
               - "s3:PutObject"
             Resource:
-              - !Join ['', ['arn:aws:s3:::', !Ref S3BucketName]
-              - !Join ['', ['arn:aws:s3:::', !Ref S3BucketName,'*']
+              - !Join ["", ["arn:aws:s3:::", !Ref S3BucketName]]
+              - !Join ["", ["arn:aws:s3:::", !Ref S3BucketName, "*"]]
               - "arn:aws:s3:::%FIREHOSE_BUCKET_NAME%"
               - "arn:aws:s3:::%FIREHOSE_BUCKET_NAME%/*"
           - Sid: ""

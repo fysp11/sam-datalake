@@ -5,6 +5,11 @@ Description: >
 
   Sample SAM Template for sam-datalake
 
+Parameters:
+  S3BucketName:
+    Type: String
+    Description: S3 Bucket Name for storing the pipeline data.
+
 Globals:
   Function:
     Timeout: 300
@@ -24,7 +29,7 @@ Resources:
     Properties:
       DeliveryStreamType: DirectPut
       ExtendedS3DestinationConfiguration:
-        BucketARN: !GetAtt S3Bucket.Arn
+        BucketARN: !Join ['', ['arn:aws:s3:::', !Ref S3BucketName]
         CloudWatchLoggingOptions:
           Enabled: true
           LogGroupName: !Ref DeliveryLogGroup
@@ -69,11 +74,6 @@ Resources:
               Parameters:
                 - ParameterName: LambdaArn
                   ParameterValue: !GetAtt ProcessDataFunction.Arn
-  S3Bucket:
-    Type: AWS::S3::Bucket
-    Properties:
-      VersioningConfiguration:
-        Status: Enabled
 
   DeliveryRole:
     Type: AWS::IAM::Role
@@ -116,8 +116,8 @@ Resources:
               - "s3:ListBucketMultipartUploads"
               - "s3:PutObject"
             Resource:
-              - !GetAtt S3Bucket.Arn
-              - !Join ["/", [!GetAtt S3Bucket.Arn, "*"]]
+              - !Join ['', ['arn:aws:s3:::', !Ref S3BucketName]
+              - !Join ['', ['arn:aws:s3:::', !Ref S3BucketName,'*']
               - "arn:aws:s3:::%FIREHOSE_BUCKET_NAME%"
               - "arn:aws:s3:::%FIREHOSE_BUCKET_NAME%/*"
           - Sid: ""

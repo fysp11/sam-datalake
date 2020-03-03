@@ -1,5 +1,7 @@
 import json
 
+from os import getenv
+
 import boto3
 from faker import Faker
 
@@ -14,7 +16,7 @@ def lambda_handler(event=None, context=None):
         records = [{'Data': json.dumps(profile).encode()}
                    for profile in profiles]
         client.put_record_batch(
-            DeliveryStreamName='SamDatalake-DeliveryStream-HH8GC3SL5VIC',
+            DeliveryStreamName=getenv('TARGET_STREAM_NAME'),
             Records=records
         )
 

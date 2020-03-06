@@ -9,12 +9,12 @@ Parameters:
   S3BucketName:
     Type: String
     Description: S3 Bucket Name for storing the pipeline data.
+  GlueDatabase:
+    Type: String
+    Description: Glue Database to create the table under.
   GlueTableName:
     Type: String
-    Description: S3 Bucket Name for storing the pipeline data.
-  GlueDatabaseName:
-    Type: String
-    Description: S3 Bucket Name for storing the pipeline data.
+    Description: Glue Table name to be created under the selected Glue Database.
 
 Globals:
   Function:

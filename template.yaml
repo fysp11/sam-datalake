@@ -35,7 +35,7 @@ Resources:
       DatabaseName: !Ref GlueDatabaseName
       TableInput:
         Name: !Ref GlueTableName
-        Retention: 0
+        TableType: EXTERNAL_TABLE
         StorageDescriptor:
           Location: !Sub "s3://${S3BucketName}/${AWS::StackName}/RawData/"
           Columns:
@@ -49,7 +49,7 @@ Resources:
               Type: double
           InputFormat: org.apache.hadoop.hive.ql.io.parquet.MapredParquetInputFormat
           OutputFormat: org.apache.hadoop.hive.ql.io.parquet.MapredParquetOutputFormat
-          Compressed: true
+          Compressed: false
           NumberOfBuckets: -1
           SerdeInfo:
             SerializationLibrary: org.apache.hadoop.hive.ql.io.parquet.serde.ParquetHiveSerDe
@@ -58,6 +58,10 @@ Resources:
           BucketColumns: []
           SortColumns: []
           StoredAsSubDirectories: false
+          Parameters:
+            classification: parquet
+            typeOfData: file
+            compressionType: none
         PartitionKeys:
           - Name: year
             Type: string
@@ -67,7 +71,6 @@ Resources:
             Type: string
           - Name: hour
             Type: string
-        TableType: EXTERNAL_TABLE
         Parameters:
           classification: parquet
           typeOfData: file
@@ -255,9 +258,9 @@ Resources:
       LogGroupName: !Ref DeliveryLogGroup
 
 Outputs:
-  ProcessDataFunctionArn:
-    Description: "Process Data Lambda Function ARN"
-    Value: !GetAtt ProcessDataFunction.Arn
-  ProcessDataFunctionName:
-    Description: "Process Data Lambda Function Name"
-    Value: !Ref ProcessDataFunction
+  DeliveryStreamArn:
+    Description: "Kinesis Firehose Delivery Stream ARN"
+    Value: !GetAtt DeliveryStream.Arn
+  DeliveryStreamName:
+    Description: "Kinesis Firehose Delivery Stream Name"
+    Value: !Ref DeliveryStream
